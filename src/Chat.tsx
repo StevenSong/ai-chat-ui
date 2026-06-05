@@ -60,7 +60,7 @@ interface RemoteConfig {
 }
 
 async function getModels() {
-  const res = await fetch('/api/configure')
+  const res = await fetch(withBasePath('/api/configure'))
   return (await res.json()) as RemoteConfig
 }
 
@@ -85,6 +85,7 @@ const ChatInner = () => {
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
+        api: withBasePath('/api/chat'),
         body: () => ({ model: modelRef.current, builtinTools: enabledToolsRef.current, effort: effortRef.current }),
       }),
   )
