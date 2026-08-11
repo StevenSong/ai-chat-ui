@@ -18,17 +18,17 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Build with sentinel base
-        run: npm run build -- --base="/${{ env.SENTINEL }}/"
+        run: pnpm run build -- --base="/${{ env.SENTINEL }}/"
 
       - name: Assert sentinel is present
         run: |
