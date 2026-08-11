@@ -31,6 +31,8 @@ jobs:
 
       - name: Build with sentinel base
         run: pnpm run build -- --base="/${{ env.SENTINEL }}/"
+      - name: Build with sentinel base
+        run: VITE_BASE="/$SENTINEL/" pnpm run build
 
       - name: Assert sentinel is present
         run: |
