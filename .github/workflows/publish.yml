@@ -35,10 +35,13 @@ jobs:
       - name: Assert sentinel is present
         run: |
           set -euo pipefail
-          n=$(grep -ro "$SENTINEL" dist | wc -l)
+          echo "--- workspace ---"; ls -la
+          echo "--- dist ---"; ls -laR dist | head -50
+          n=$(grep -ro "$SENTINEL" dist | wc -l || true)
           echo "sentinel occurrences: $n"
           if [ "$n" -eq 0 ]; then
-            echo "::error::No '$SENTINEL' found in dist — base injection broke." >&2
+            echo "::error::No '$SENTINEL' in dist — base injection broke."
+            echo "--- index.html ---"; cat dist/index.html || true
             exit 1
           fi
 
