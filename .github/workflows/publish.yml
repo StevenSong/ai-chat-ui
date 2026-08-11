@@ -1,0 +1,27 @@
+# .github/workflows/publish.yml
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm }
+      - run: npm ci
+      - run: npm run build -- --base="/__BASE_PATH__/"
+      - run: grep -rc __BASE_PATH__ dist | head   # sanity check, see below
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.dist
+          push: true
+          tags: ghcr.io/stevensong/ai-chat-ui-dist:${{ github.ref_name }}
