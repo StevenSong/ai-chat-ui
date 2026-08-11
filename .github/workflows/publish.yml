@@ -1,27 +1,91 @@
 # .github/workflows/publish.yml
+name: Publish dist
+
 on:
   push:
-    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+env:
+  IMAGE: ghcr.io/stevensong/ai-chat-ui-dist
+  SENTINEL: __BASE_PATH__
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions: { contents: read, packages: write }
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: npm }
+        with:
+          node-version: '20'
+          cache: npm
+
       - run: npm ci
-      - run: npm run build -- --base="/__BASE_PATH__/"
-      - run: grep -rc __BASE_PATH__ dist | head   # sanity check, see below
+
+      - name: Build with sentinel base
+        run: npm run build -- --base="/${{ env.SENTINEL }}/"
+
+      - name: Assert sentinel is present
+        run: |
+          set -euo pipefail
+          n=$(grep -ro "$SENTINEL" dist | wc -l)
+          echo "sentinel occurrences: $n"
+          if [ "$n" -eq 0 ]; then
+            echo "::error::No '$SENTINEL' found in dist — base injection broke." >&2
+            exit 1
+          fi
+
+      - name: Stamp version
+        run: |
+          printf '%s\n' "${{ github.sha }}" > dist/version.txt
+          printf '%s\n' "${{ github.ref_name }}" >> dist/version.txt
+          date -u +'%Y-%m-%dT%H:%M:%SZ' >> dist/version.txt
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.dist
           push: true
-          tags: ghcr.io/stevensong/ai-chat-ui-dist:${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Summary
+        run: |
+          echo "### Published" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: ai-chat-ui-dist
+          package-type: container
+          min-versions-to-keep: 20
+          delete-only-untagged-versions: false
